@@ -1,4 +1,4 @@
-# NetworkDiscovery
+# NetworkDiscovery (Java/Android)
 Network Discovery with UDP comms
 
 *Not yet complete*
