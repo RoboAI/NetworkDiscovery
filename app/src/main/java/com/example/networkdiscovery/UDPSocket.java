@@ -2,6 +2,9 @@
 //TODO: bind(), disconnect() not really needed
 package com.example.networkdiscovery;
 
+import android.content.Context;
+import android.net.DhcpInfo;
+import android.net.wifi.WifiManager;
 import android.util.Log;
 
 import java.io.IOException;
@@ -140,12 +143,15 @@ public class UDPSocket {
 		UDPExtracted udp_extracted = new UDPExtracted();
 		udp_extracted.data = Arrays.copyOf(dp.getData(), dp.getLength());
 		udp_extracted.port = dp.getPort();
-		udp_extracted.SenderIP = dp.getAddress().toString();
+		udp_extracted.SenderIP = dp.getAddress().toString().substring(1);
 		udp_extracted.socketAddress = dp.getSocketAddress();
 		return udp_extracted;
 	}
 }
 
+/*
+changes:
+ - UDPExtracted: removed '/' from beginning of IP before storing it in SenderIP
 
-
+*/
 

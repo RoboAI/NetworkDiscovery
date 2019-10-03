@@ -54,12 +54,13 @@ public class NDClient implements Runnable {
         String all;
         byte[] bytes;
         DatagramPacket packet;
-        String myIP = globalMyIP.substring(globalMyIP.length() - 3);
+        //String myIP = globalMyIP.substring(globalMyIP.length() - 3);
+        String myIP = globalMyIP;
 
         InetAddress sa;
 
         try{
-            Log.i(TAG, "NDClient:run: setBroadcast... ");
+            //Log.i(TAG, "NDClient:run: setBroadcast... ");
            // socket.socket.setBroadcast(true);
             sa = InetAddress.getByName(connectIP);
             packet = new DatagramPacket(new byte[1], 1, sa, DEFAULT_UDP_PORT);

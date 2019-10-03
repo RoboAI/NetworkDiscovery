@@ -1,5 +1,7 @@
 package com.example.networkdiscovery;
 
+import android.content.Context;
+import android.net.DhcpInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.StrictMode;
@@ -8,16 +10,19 @@ import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 
 import static com.example.networkdiscovery.GlobalDefines.DEFAULT_MASTER_PORT;
 import static com.example.networkdiscovery.GlobalDefines.DEFAULT_UDP_PORT;
 import static com.example.networkdiscovery.GlobalDefines.globalMyIP;
 
-public class MainActivity extends AppCompatActivity{
+public class MainActivity extends AppCompatActivity implements MyCustomView.OnUdpMsgReceived{
     TextView tvMain;
     TextView tvStatus;
     MyCustomView cv;
@@ -51,6 +56,10 @@ public class MainActivity extends AppCompatActivity{
         tvMain.setText("  ---->");
 
         setTitle(getTitle() + " - " + myIP);
+
+        ((EditText)findViewById(R.id.editTextIP)).setText(myIP.substring(0, 10));
+
+        cv.addMeForCallback(this);
     }
 
     public String getIpAddr() {
@@ -69,12 +78,16 @@ public class MainActivity extends AppCompatActivity{
     }
 
     public void toast(String s){
-        Toast.makeText(getApplicationContext(), s, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
 
     public void onClick_Button(View view){
-        toast("working..");
+        toast("sent signal");
 
+        //String ip = ((EditText)findViewById(R.id.editTextIP)).getText().toString();
+        //cv.SetDestinationIP(ip);
+
+        cv.checkForClients();
     }
 
     @Override
@@ -95,5 +108,38 @@ public class MainActivity extends AppCompatActivity{
 
         cv.startServer();
         cv.startClient();
+    }
+
+    public static InetAddress getBroadcastAddress(Context context) {
+        WifiManager wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        DhcpInfo dhcp = wifi.getDhcpInfo();
+
+        if(dhcp == null)
+            return null;
+
+        int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
+        byte[] quads = new byte[4];
+        for (int k = 0; k < 4; k++)
+            quads[k] = (byte) (broadcast >> (k * 8));
+
+        try {
+            return InetAddress.getByAddress(quads);
+        }catch (IOException e){
+            Log.i("ABCD", "getBroadcastAddress: IOException: " + e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public void OnClientFound(final String ip, final int port) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                ((EditText)findViewById(R.id.editTextIP)).setText(ip);
+                Toast.makeText(getApplicationContext(), "client found: " + ip + ":" + String.valueOf(port), Toast.LENGTH_LONG).show();
+            }
+        });
+
+        //toast(ip);
     }
 }

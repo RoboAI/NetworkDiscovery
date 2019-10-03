@@ -7,15 +7,25 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.Toast;
 
+import java.io.IOException;
 import java.net.Socket;
 
+import static com.example.networkdiscovery.GlobalDefines.DEFAULT_BC_PORT;
 import static com.example.networkdiscovery.GlobalDefines.DEFAULT_MASTER_PORT;
 import static com.example.networkdiscovery.GlobalDefines.DEFAULT_UDP_PORT;
+import static com.example.networkdiscovery.GlobalDefines.TAG;
 import static com.example.networkdiscovery.GlobalDefines.globalMyIP;
 
 public class MyCustomView extends View implements MultiTouchController.TouchUpdateListener, IListenerConnection, MyTimer.ITimerElapsed{
+    public interface OnUdpMsgReceived{
+        void OnClientFound(String ip, int port);
+    }
+
     MyCircle circle_me;
     MyCircle circle_them;
     MyTimer timer;
@@ -24,23 +34,32 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
 
     MultiTouchController multitouch;
 
-    NDClient client;
-    NDServer server;
+    public NDClient client;
+    public NDServer server;
+    UDPBroadcastSend udpBroadcastSend;
 
     SingleMove singleMove;
 
-    String myIP = globalMyIP.substring(globalMyIP.length() - 3);
+    //String myIP = globalMyIP.substring(globalMyIP.length() - 3);
+    String myIP = globalMyIP;
+    String bcIP = "";//stores broadcast address
+
+    OnUdpMsgReceived udpCallback;
 
     public MyCustomView(Context context) {
         super(context);
 
         init();
+
+        udpBroadcastSend = new UDPBroadcastSend(context);
     }
 
     public MyCustomView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
 
         init();
+
+        udpBroadcastSend = new UDPBroadcastSend(context);
     }
 
     private void init() {
@@ -51,7 +70,7 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
 
         client = new NDClient(singleMove);
 
-        server = new NDServer(DEFAULT_UDP_PORT, myIP, DEFAULT_MASTER_PORT);
+        server = new NDServer(DEFAULT_UDP_PORT, myIP, DEFAULT_MASTER_PORT, myIP);
         server.addCallback(this);
 
         multitouch = new MultiTouchController();
@@ -136,15 +155,26 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
     @Override
     public void onDataReceived(String data){
 
+        Log.i(TAG, "-----------------------------------------------" + data);
         if(data.startsWith(GlobalDefines.START_TAG)){
-
+            Log.i(TAG, "-----------------------------------------------" + data);
             String ip = getIPFromMessage(data);
             if(myIP.equals(ip))
                 return;
 
-            singleMove.ip = getFullIPFromMessage(data);
+            singleMove.src_ip = getFullIPFromMessage(data);
 
             updateThem(getXCoord(data), getYCoord(data));
+        }
+        else if(data.startsWith(GlobalDefines.SERVER_PROTOCOL_STAGES[0])){
+            /*
+            Log.i(TAG, "-----------------------------------client found..");
+            String ip = data.substring(data.indexOf(':') + 1, data.lastIndexOf(':'));
+            String port = data.substring(data.lastIndexOf(':') + 1);
+            SetDestinationIP(ip);
+            if(udpCallback != null)
+                udpCallback.OnClientFound(ip, Integer.parseInt(port));
+                */
         }
     }
 
@@ -174,8 +204,12 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
     }
 
     @Override
-    public void onSenderIPDiscovered(String ip) {
+    public void onSenderIPDiscovered(String ip, int port) {
+        Log.i(TAG, "onSenderIPDiscovered():");
 
+        SetDestinationIP(ip);
+        if(udpCallback != null)
+            udpCallback.OnClientFound(ip, port);
     }
 
     private void drawLineDots(Canvas canvas){
@@ -222,5 +256,34 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
         circle_them.y = p.y;
 
         invalidate();
+    }
+
+    public void SetDestinationIP(String ip){
+        stopClient();
+        singleMove.dst_ip = ip;
+        client.connectIP = ip;
+        try {
+            Thread.sleep(250);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        startClient();
+    }
+
+    public void checkForClients(){
+        try {
+            udpBroadcastSend.openSocket(DEFAULT_BC_PORT);
+            udpBroadcastSend.sendPacket(GlobalDefines.CLIENT_PROTOCOL_STAGES[0].getBytes(), DEFAULT_BC_PORT);
+            //udpBroadcastSend.sendPacket("app_server_uri:192.168.1.104:55056".getBytes(), DEFAULT_BC_PORT);
+            udpBroadcastSend.closeSocket();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public void addMeForCallback(OnUdpMsgReceived callback){
+        udpCallback = callback;
     }
 }

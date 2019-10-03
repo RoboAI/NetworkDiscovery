@@ -1,11 +1,17 @@
 package com.example.networkdiscovery;
 
+import android.content.Context;
 import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
+import android.widget.EditText;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketException;
@@ -14,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import static com.example.networkdiscovery.GlobalDefines.CLIENT_PROTOCOL_STAGES;
+import static com.example.networkdiscovery.GlobalDefines.DEFAULT_BC_PORT;
 import static com.example.networkdiscovery.GlobalDefines.DEFAULT_MASTER_PORT;
 import static com.example.networkdiscovery.GlobalDefines.SERVER_PROTOCOL_STAGES;
 import static com.example.networkdiscovery.GlobalDefines.TAG;
@@ -29,6 +36,7 @@ public class NDServer implements Runnable{
     int masterServerPort;
     String masterServerIP;
     int portToListen;
+    String myIP;
 
     public void addCallback(IListenerConnection cb){
         callbacks.add(cb);
@@ -70,24 +78,25 @@ public class NDServer implements Runnable{
         }
     }
 
-    public void onServerIPDiscovered(String data){
+    public void onSenderIPDiscovered(String ip, int port){
         for(IListenerConnection cb : callbacks){
-            cb.onSenderIPDiscovered(data);
+            cb.onSenderIPDiscovered(ip, port);
         }
     }
 
+    UDPBroadcastSend udpBroadcastSend;
     UDPSocket serverListener;
     Thread thread;
-    //boolean bExit;
     volatile Integer iExit = 0;
     int counter = 0;
 
-    public NDServer(int portToListen, String masterServerIP ,int masterPort){
+    public NDServer(int portToListen, String masterServerIP ,int masterPort, String myip){
         init();
 
         this.portToListen = portToListen;
         this.masterServerPort = masterPort;
         this.masterServerIP = masterServerIP;
+        this.myIP = myip;
     }
 
     private void init(){
@@ -199,18 +208,22 @@ public class NDServer implements Runnable{
                 //TODO: debug what happens when interrupted during getUDPData()
                 //client stage 0
                 try {
-                    if ((data = getUDPData(ue)) != null) {
+                    data = getUDPData(ue);
+                    if (data != null && !ue.SenderIP.equals(myIP) ) {
                         if (data.equals(CLIENT_PROTOCOL_STAGES[0])) {
-                            Log.i(TAG, "NDServer:run: Client protocol stage 0 passed");
+                            Log.i(TAG, "NDServer:run: CLIENT_PROTOCOL_STAGES[0]:");
+
+                            onSenderIPDiscovered(ue.SenderIP, ue.port);
 
                             //server stage 0
-                            StringBuilder sb = new StringBuilder();
-                            sb.append(SERVER_PROTOCOL_STAGES[0]);
-                            sb.append(masterServerIP);
-                            sb.append(":");
-                            sb.append(masterServerPort);
-                            sendUDPData(ue.socketAddress, sb.toString().getBytes());
+                            sendResponseAvailable(ue);
+                        }
+                        else if(data.startsWith(SERVER_PROTOCOL_STAGES[0])){
+                            Log.i(TAG, "NDServer:run: SERVER_PROTOCOL_STAGES[0]:");
 
+                            String ip = data.substring(data.indexOf(':') + 1, data.lastIndexOf(':'));
+                            String port = data.substring(data.lastIndexOf(':') + 1);
+                            onSenderIPDiscovered(ip, Integer.parseInt(port));
                         }
                     }
 
@@ -242,6 +255,33 @@ public class NDServer implements Runnable{
         Log.i(TAG, "NDServer:run: return from run()");
     }
 
+    private void sendResponseAvailable(UDPSocket.UDPExtracted ue) {
+        DatagramSocket socket;
+        DatagramPacket packet;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(SERVER_PROTOCOL_STAGES[0]);
+        sb.append(masterServerIP);
+        sb.append(":");
+        sb.append(masterServerPort);
+
+        //sendUDPData(ue.socketAddress, sb.toString().getBytes());
+
+        try {
+            socket = new DatagramSocket(null);
+            socket.setReuseAddress(true);
+
+            byte[] bytes = sb.toString().getBytes();
+            packet = new DatagramPacket(bytes, 0, bytes.length);
+            packet.setAddress(InetAddress.getByName(ue.SenderIP));
+            packet.setPort(DEFAULT_BC_PORT);
+            socket.send(packet);
+            socket.close();
+        } catch (Exception e) {
+
+        }
+    }
+
     private void setSocketTimeout(int millis) throws SocketException {
         serverListener.socket.setSoTimeout(millis);
     }
@@ -250,7 +290,7 @@ public class NDServer implements Runnable{
         try {
             return serverListener.socket.getSoTimeout();
         } catch (SocketException e) {
-            Log.i(TAG, "getTimeout: " + e.getMessage());
+            Log.i(TAG, "NDServer:getSocketTimeout: " + e.getMessage());
         }
 
         return 0;
@@ -258,20 +298,18 @@ public class NDServer implements Runnable{
 
     private void sendUDPData(SocketAddress sa, byte[] data) throws IOException {
         DatagramPacket outPacket = new DatagramPacket(data, data.length, sa);
-        //serverListener.SendUDP(outPacket.getData());
-        DatagramPacket out = null;
 
-        out = new DatagramPacket(data, data.length, sa);
-        serverListener.socket.send(out);
+        //serverListener.SendUDP(outPacket.getData());
+        serverListener.socket.send(outPacket);
 
         String sentData = new String(data, StandardCharsets.UTF_8);
-        Log.i(TAG, "run(): sent -> " + sentData);
+        Log.i(TAG, "NDServer:run(): sent -> " + sentData);
 
         onDataSent(sentData);
     }
 
     private String getUDPData(UDPSocket.UDPExtracted out) throws IOException{
-        Log.i(TAG, "getUDPData: Receiving UDP Packet");
+        Log.i(TAG, "NDServer:getUDPData(): Receiving UDP Packet");
 
         UDPSocket.UDPExtracted udpe = receiveUDPPacket();
 
@@ -281,7 +319,7 @@ public class NDServer implements Runnable{
         out.copyFrom(udpe);
 
         String data = new String(out.data, StandardCharsets.UTF_8);
-        Log.i(TAG, out.SenderIP + ":" + out.port + " -> " + data);
+        Log.i(TAG, "NDServer:getUDPData(): " + out.SenderIP + ":" + out.port + " -> " + data);
 
         onDataReceived(data);
 
@@ -289,82 +327,8 @@ public class NDServer implements Runnable{
     }
 
     private UDPSocket.UDPExtracted receiveUDPPacket() throws IOException {
-        Log.i(TAG, "NDServer:receiveUDPPacket(): port " + serverListener.port + "...");
+        Log.i(TAG, "NDServer:receiveUDPPacket(): port " + serverListener.port);
 
         return serverListener.ReceiveUDPSimpleDetail();
     }
 }
-
-/*
-while (iExit == 0) {
-                counter++;
-
-                Log.i(TAG, "run: counter: " + counter);
-
-                if (Thread.currentThread().isInterrupted()) {
-                    Log.i(TAG, "run: Thread.currentThread().isInterrupted()");
-                    throw new InterruptedException();
-                }
-
-                UDPSocket.UDPExtracted ue = serverListener.new UDPExtracted();
-                String data = null;
-
-                //TODO: debug what happens when interrupted during getUDPData()
-                //client stage 0
-                try {
-                    if ((data = getUDPData(ue)) != null) {
-                        if (data.equals(CLIENT_PROTOCOL_STAGES[0])) {
-                            Log.i(TAG, "run: Client protocol stage 0 passed");
-
-                            //server stage 0
-                            sendUDPData(ue.socketAddress, SERVER_PROTOCOL_STAGES[0].getBytes());
-                            Thread.sleep(150);
-                            sendUDPData(ue.socketAddress, SERVER_PROTOCOL_STAGES[0].getBytes());
-                            Thread.sleep(150);
-
-                            //set timeout so this wont hang if next packet isnt received
-                            setSocketTimeout(1000);
-
-                            //client stage 1
-                            if ((data = getUDPData(ue)) != null) {
-                                if (data.equals(CLIENT_PROTOCOL_STAGES[1])) {
-                                    Log.i(TAG, "run: Client protocol stage 1 passed");
-
-                                    //server stage 1
-                                    StringBuilder sb = new StringBuilder();
-                                    sb.append(SERVER_PROTOCOL_STAGES[1]);
-                                    sb.append(masterServerIP);
-                                    sb.append(":");
-                                    sb.append(masterServerPort);
-                                    sendUDPData(ue.socketAddress, sb.toString().getBytes());
-                                }
-                            }
-
-                            setSocketTimeout(timeOut);
-
-                        } else if (data.equals("end thread")) {
-                            iExit = 1;
-                        }
-                    }
-
-                } catch (InterruptedException e) {
-                    Log.i(TAG, "run: InterruptedException: " + e.getMessage());
-                    return;
-
-                } catch (SocketException e) {
-                    Log.i(TAG, "run: SocketException: " + e.getMessage());
-
-                } catch (SocketTimeoutException e) {
-                    Log.i(TAG, "run: SocketTimeoutException: " + e.getMessage());
-
-                    try {
-                        setSocketTimeout(timeOut);
-                    } catch (SocketException e1) {
-                        e1.printStackTrace();
-                    }
-
-                } catch (IOException e) {
-                    Log.i(TAG, "run: IOException: " + e.getMessage());
-                }
-            }
- */

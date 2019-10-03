@@ -3,8 +3,9 @@ package com.example.networkdiscovery;
 public class GlobalDefines {
     public static final String TAG = "ABCD";
 
-    public static final int DEFAULT_MASTER_PORT = 54321;
+    public static final int DEFAULT_MASTER_PORT = 55056;
     public static final int DEFAULT_UDP_PORT = 55056;
+    public static final int DEFAULT_BC_PORT = DEFAULT_UDP_PORT;//broadcast port
 
     public static final int DEFAULT_CLIENT_PORT = 55059;
 
@@ -19,5 +20,5 @@ public class GlobalDefines {
     public final static String[] SERVER_PROTOCOL_STAGES =
             { "app_server_uri:"};
 
-    public static String globalMyIP = "";
+    public static String globalMyIP = "";//un
 }

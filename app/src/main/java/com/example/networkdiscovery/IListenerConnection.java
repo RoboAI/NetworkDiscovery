@@ -9,5 +9,5 @@ public interface IListenerConnection {
     void onDataReceived(String data);
     void onDataSent(String data);
     void onServerMessage(String msg);
-    void onSenderIPDiscovered(String ip);
+    void onSenderIPDiscovered(String ip, int port);
 }
