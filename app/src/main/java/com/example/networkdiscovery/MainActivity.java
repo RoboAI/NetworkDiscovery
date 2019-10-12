@@ -82,12 +82,18 @@ public class MainActivity extends AppCompatActivity implements MyCustomView.OnUd
     }
 
     public void onClick_Button(View view){
-        toast("sent signal");
-
-        //String ip = ((EditText)findViewById(R.id.editTextIP)).getText().toString();
-        //cv.SetDestinationIP(ip);
-
         cv.checkForClients();
+        toast("sent signal");
+    }
+
+    public void onClick_SetHostIP(View view){
+        String ip = ((EditText)findViewById(R.id.editTextIP)).getText().toString();
+        if(ip.isEmpty())
+            toast("ip is blank");
+        else {
+            cv.SetDestinationIP(ip);
+            toast("IP Set");
+        }
     }
 
     @Override
