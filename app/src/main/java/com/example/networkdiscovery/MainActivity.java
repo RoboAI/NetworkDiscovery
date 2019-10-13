@@ -55,9 +55,10 @@ public class MainActivity extends AppCompatActivity implements MyCustomView.OnUd
         tvMain.setMovementMethod(new ScrollingMovementMethod());
         tvMain.setText("  ---->");
 
-        setTitle(getTitle() + " - " + myIP);
+        setTitle( "Net.Discovery - " + myIP);
 
-        ((EditText)findViewById(R.id.editTextIP)).setText(myIP.substring(0, 10));
+        String subIP = myIP.substring(0, myIP.lastIndexOf('.'));
+        ((EditText)findViewById(R.id.editTextIP)).setText(subIP);
 
         cv.addMeForCallback(this);
     }
