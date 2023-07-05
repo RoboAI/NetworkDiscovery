@@ -15,6 +15,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.Socket;
 
@@ -68,6 +70,28 @@ public class MainActivity extends AppCompatActivity implements MyCustomView.OnUd
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
         int ipAddress = wifiInfo.getIpAddress();
         String ip = intToIp(ipAddress);
+
+        Method method = null;
+        try {
+            method = wifiManager.getClass().getDeclaredMethod("getWifiApState");
+            int actualState = (Integer) method.invoke(wifiManager, (Object[]) null);
+
+            int AP_STATE_ENABLING = 12;
+            int AP_STATE_ENABLED = 13;
+
+            if(actualState == AP_STATE_ENABLING || actualState == AP_STATE_ENABLED){
+                toast("hotspot active");
+            }
+
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
+
+
         return ip;
     }
 

@@ -139,6 +139,7 @@ public class UDPSocket {
 	}
 	
 	public UDPExtracted ReceiveUDPSimpleDetail() throws IOException{
+		Log.i(TAG, "NDServer:ReceiveUDPSimpleDetail():");
 		DatagramPacket dp = ReceiveUDP();
 		UDPExtracted udp_extracted = new UDPExtracted();
 		udp_extracted.data = Arrays.copyOf(dp.getData(), dp.getLength());

@@ -159,8 +159,10 @@ public class MyCustomView extends View implements MultiTouchController.TouchUpda
         if(data.startsWith(GlobalDefines.START_TAG)){
             Log.i(TAG, "-----------------------------------------------" + data);
             String ip = getIPFromMessage(data);
-            if(myIP.equals(ip))
+            if(myIP.equals(ip)) {
+                Log.i(TAG, "MyCustomView:onDataReceived(): " + "myIP = " + myIP);
                 return;
+            }
 
             singleMove.src_ip = getFullIPFromMessage(data);
 
